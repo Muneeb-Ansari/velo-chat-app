@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/websocket"
+	"github.com/joho/godotenv"
 )
 
 type Claims struct {
@@ -58,6 +59,12 @@ var (
 )
 
 func main() {
+
+	err := godotenv.Load()
+    if err != nil {
+        log.Println("No .env file found")
+    }
+
 	router := gin.Default()
 
 	router.GET("/health", func(c *gin.Context) {
@@ -251,14 +258,19 @@ func handleSendMessage(client *Client, msg IncomingMessage) {
 }
 
 func persistMessage(payload PersistMessagePayload) (any, error) {
-	jsonData, err := json.Marshal(payload) // ← was: jsonData, _ = ...
+	jsonData, err := json.Marshal(payload)
     if err != nil {
         return nil, err
     }
 
+	backendURL := os.Getenv("BACKEND_URL")
+	if backendURL == "" {
+		backendURL = "http://localhost:5000"
+	}
+
 	req, err := http.NewRequest(
 		"POST",
-		"http://localhost:3000/api/internal/messages",
+		backendURL+"/api/internal/messages",
 		bytes.NewBuffer(jsonData),
 	)
 

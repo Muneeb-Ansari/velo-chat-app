@@ -3,12 +3,12 @@ import { messages, roomMembers } from "../db/schema";
 import { eq, and } from "drizzle-orm";
 
 export async function saveMessage(roomId: string, senderId: string, content: string) {
-    const membership = await db.query.roomMembers.findFirst({
-        where: and(
+    const membership = await db.select().from(roomMembers).where(
+        and(
             eq(roomMembers.roomId, roomId),
             eq(roomMembers.userId, senderId)
-        ),
-    });
+        )
+    ).limit(1).then(res => res[0]);
 
     if (!membership) throw new Error("Not a room member");
 
@@ -19,10 +19,5 @@ export async function saveMessage(roomId: string, senderId: string, content: str
         type: "text",
     }).returning();
 
-    return db.query.messages.findFirst({
-        where: eq(messages.id, msg.id),
-        with: {
-            sender: { columns: { id: true, username: true, avatarUrl: true } },
-        },
-    });
+    return db.select().from(messages).where(eq(messages.id, msg.id)).then(res => res[0]);
 }

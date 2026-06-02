@@ -99,7 +99,7 @@ export async function login(req: Request, res: Response) {
       return res.status(400).json({ error: err.errors });
     }
     console.error(err);
-    res.status(500).json({  error: err.message });
+    res.status(500).json({  error: "Internal server error"});
   }
 }
 

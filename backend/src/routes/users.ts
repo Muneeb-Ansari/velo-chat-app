@@ -15,11 +15,12 @@ router.get("/search", async (req: AuthRequest, res: Response) => {
       return res.json({ users: [] });
     }
 
-    const found = await db.query.users.findMany({
-      where: (u) => ilike(u.username, `%${q}%`),
-      columns: { id: true, username: true, avatarUrl: true, isOnline: true },
-      limit: 10,
-    });
+    const found = await db.select({
+      id: users.id,
+      username: users.username,
+      avatarUrl: users.avatarUrl,
+      isOnline: users.isOnline,
+    }).from(users).where(ilike(users.username, `%${q}%`)).limit(10);
 
     const filtered = found.filter((u) => u.id !== req.userId);
     res.json({ users: filtered });
@@ -32,11 +33,13 @@ router.get("/search", async (req: AuthRequest, res: Response) => {
 // GET /api/users - list all users except self
 router.get("/", async (req: AuthRequest, res: Response) => {
   try {
-    const allUsers = await db.query.users.findMany({
-      where: ne(users.id, req.userId!),
-      columns: { id: true, username: true, avatarUrl: true, isOnline: true },
-      limit: 50,
-    });
+    const allUsers = await db.select({
+      id: users.id,
+      username: users.username,
+      avatarUrl: users.avatarUrl,
+      isOnline: users.isOnline,
+    }).from(users).where(ne(users.id, req.userId!)).limit(50);
+
     res.json({ users: allUsers });
   } catch (err) {
     console.error(err);

@@ -1,7 +1,7 @@
 import { Router, Response } from "express";
 import { z } from "zod";
 import { db } from "../db";
-import { rooms, roomMembers, messages } from "../db/schema";
+import { rooms, roomMembers, messages, users } from "../db/schema";
 import { authMiddleware, AuthRequest } from "../middleware/auth";
 import { eq, and, desc, lt } from "drizzle-orm";
 
@@ -18,25 +18,45 @@ const createRoomSchema = z.object({
 // GET /api/rooms - list rooms the user is in
 router.get("/", async (req: AuthRequest, res: Response) => {
   try {
-    const myRooms = await db.query.roomMembers.findMany({
-      where: eq(roomMembers.userId, req.userId!),
-      with: {
-        room: {
-          with: {
-            members: {
-              with: { user: { columns: { id: true, username: true, avatarUrl: true, isOnline: true } } },
-            },
-          },
-        },
-      },
-    });
+    const myRooms = await db
+      .select({
+        roomId: rooms.id,
+        roomName: rooms.name,
+        memberId: roomMembers.id,
+        userId: users.id,
+        username: users.username,
+        avatarUrl: users.avatarUrl,
+        isOnline: users.isOnline,
+      })
+      .from(roomMembers)
+      .innerJoin(rooms, eq(roomMembers.roomId, rooms.id))
+      .innerJoin(users, eq(roomMembers.userId, users.id))
+      .where(eq(roomMembers.userId, req.userId!));
 
-    const result = myRooms.map((rm) => ({
-      ...rm.room,
-      members: rm.room.members.map((m) => m.user),
-    }));
+    // group manually
+    const grouped = myRooms.reduce((acc: any, row) => {
+      let room = acc.find((r: any) => r.id === row.roomId);
 
-    res.json({ rooms: result });
+      if (!room) {
+        room = {
+          id: row.roomId,
+          name: row.roomName,
+          members: [],
+        };
+        acc.push(room);
+      }
+
+      room.members.push({
+        id: row.userId,
+        username: row.username,
+        avatarUrl: row.avatarUrl,
+        isOnline: row.isOnline,
+      });
+
+      return acc;
+    }, []);
+
+    res.json({ rooms: grouped });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });
@@ -78,39 +98,67 @@ router.post("/", async (req: AuthRequest, res: Response) => {
 
 // GET /api/rooms/:roomId/messages - paginated history
 router.get("/:roomId/messages", async (req: AuthRequest, res: Response) => {
-    try {
-        const { roomId } = req.params;
-        const limit = Math.min(Number(req.query.limit) || 50, 100);
-        const before = req.query.before as string | undefined;
+  try {
+    const { roomId } = req.params;
+    const limit = Math.min(Number(req.query.limit) || 50, 100);
+    const before = req.query.before as string | undefined;
 
-        const membership = await db.query.roomMembers.findFirst({
-            where: and(
-                eq(roomMembers.roomId, roomId),
-                eq(roomMembers.userId, req.userId!)
-            ),
-        });
+    // check membership
+    const membership = await db
+      .select()
+      .from(roomMembers)
+      .where(
+        and(
+          eq(roomMembers.roomId, roomId),
+          eq(roomMembers.userId, req.userId!)
+        )
+      )
+      .limit(1);
 
-        if (!membership) {
-            return res.status(403).json({ error: "Not a member of this room" });
-        }
-
-        // Fix 8 — apply cursor filter when `before` is provided
-        const msgs = await db.query.messages.findMany({
-            where: before
-                ? and(eq(messages.roomId, roomId), lt(messages.createdAt, new Date(before)))
-                : eq(messages.roomId, roomId),
-            with: {
-                sender: { columns: { id: true, username: true, avatarUrl: true } },
-            },
-            orderBy: [desc(messages.createdAt)],
-            limit,
-        });
-
-        res.json({ messages: msgs.reverse() });
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: "Internal server error" });
+    if (membership.length === 0) {
+      return res.status(403).json({ error: "Not a member of this room" });
     }
+
+    // messages + sender join
+    const msgs = await db
+      .select({
+        id: messages.id,
+        content: messages.content,
+        createdAt: messages.createdAt,
+        senderId: users.id,
+        username: users.username,
+        avatarUrl: users.avatarUrl,
+      })
+      .from(messages)
+      .innerJoin(users, eq(messages.senderId, users.id))
+      .where(
+        before
+          ? and(
+              eq(messages.roomId, roomId),
+              lt(messages.createdAt, new Date(before))
+            )
+          : eq(messages.roomId, roomId)
+      )
+      .orderBy(desc(messages.createdAt))
+      .limit(limit);
+
+    // reverse for chat UI
+    res.json({
+      messages: msgs.reverse().map((m) => ({
+        id: m.id,
+        content: m.content,
+        createdAt: m.createdAt,
+        sender: {
+          id: m.senderId,
+          username: m.username,
+          avatarUrl: m.avatarUrl,
+        },
+      })),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 // POST /api/rooms/:roomId/join
@@ -118,14 +166,18 @@ router.post("/:roomId/join", async (req: AuthRequest, res: Response) => {
   try {
     const { roomId } = req.params;
 
-    const existing = await db.query.roomMembers.findFirst({
-      where: and(
-        eq(roomMembers.roomId, roomId),
-        eq(roomMembers.userId, req.userId!)
-      ),
-    });
+    const existing = await db
+      .select()
+      .from(roomMembers)
+      .where(
+        and(
+          eq(roomMembers.roomId, roomId),
+          eq(roomMembers.userId, req.userId!)
+        )
+      )
+      .limit(1);
 
-    if (existing) {
+    if (existing.length > 0) {
       return res.status(409).json({ error: "Already a member" });
     }
 

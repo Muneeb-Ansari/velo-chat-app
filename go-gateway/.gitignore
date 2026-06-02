@@ -19,6 +19,14 @@ build/
 *.out
 coverage.out
 
+# Environment variables
+.env
+.env.local
+.env.production
+
+# Go-specific
+go.sum
+
 # Dependency directories (old projects)
 vendor/
 

@@ -158,13 +158,13 @@ export function ChatArea() {
           </span>
         </div>
         <div className="header-members">
-          {room?.members.slice(0, 5).map((m) => (
+          {room?.members?.slice(0, 5).map((m) => (
             <div key={m.id} className="member-pip" title={m.username}
               style={{ background: `hsl(${m.id.charCodeAt(0) * 7 % 360}, 60%, 55%)` }}>
               {m.username[0].toUpperCase()}
             </div>
           ))}
-          {(room?.members.length || 0) > 5 && (
+          {(room?.members?.length || 0) > 5 && (
             <div className="member-pip more">+{(room?.members.length || 0) - 5}</div>
           )}
         </div>

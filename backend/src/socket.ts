@@ -34,9 +34,10 @@ export function initSocket(server: any) {
 
     io.on("connection", async (socket) => {
         const userId = socket.data.userId;
+        const username = socket.data.username;
         userSocketMap[userId] = socket.id;
 
-        // Fix 6 — mark user online
+        // Mark user online
         try {
             await db.update(users)
                 .set({ isOnline: true })
@@ -44,29 +45,73 @@ export function initSocket(server: any) {
         } catch (err) {
             console.error("Failed to mark online:", err);
         }
-        console.log("User connected:", userId);
+        console.log("User connected:", userId, username);
 
+        // Join room
         socket.on("join_room", (roomId: string) => {
             socket.join(roomId);
+            // Notify others in room
+            socket.to(roomId).emit("user_joined", {
+                userId,
+                username,
+                timestamp: new Date(),
+            });
         });
 
+        // Send message
         socket.on("send_message", async (data: { roomId: string; content: string }) => {
             try {
                 const saved = await saveMessage(data.roomId, userId, data.content);
-                io.to(data.roomId).emit("receive_message", saved);
+                io.to(data.roomId).emit("receive_message", {
+                    ...saved,
+                    sender: {
+                        id: userId,
+                        username: username,
+                    },
+                });
             } catch (err: any) {
                 socket.emit("error", { message: err.message || "Failed to send message" });
             }
         });
 
-        // Fix 4 — disconnect handler at top level, NOT inside send_message
+        // Typing indicator
+        socket.on("typing", (data: { roomId: string; typing: boolean }) => {
+            socket.to(data.roomId).emit("user_typing", {
+                userId,
+                username,
+                typing: data.typing,
+            });
+        });
+
+        // Leave room
+        socket.on("leave_room", (roomId: string) => {
+            socket.leave(roomId);
+            socket.to(roomId).emit("user_left", {
+                userId,
+                username,
+                timestamp: new Date(),
+            });
+        });
+
+        // Disconnect handler
         socket.on("disconnect", async () => {
             delete userSocketMap[userId];
 
-            // Fix 6 — mark user offline
-            await db.update(users)
-                .set({ isOnline: false })
-                .where(eq(users.id, userId));
+            // Mark user offline
+            try {
+                await db.update(users)
+                    .set({ isOnline: false })
+                    .where(eq(users.id, userId));
+            } catch (err) {
+                console.error("Failed to mark offline:", err);
+            }
+
+            // Notify all rooms user was in
+            io.emit("user_disconnected", {
+                userId,
+                username,
+                timestamp: new Date(),
+            });
 
             console.log("User disconnected:", userId);
         });

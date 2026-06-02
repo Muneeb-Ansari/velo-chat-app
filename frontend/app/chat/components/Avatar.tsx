@@ -19,8 +19,9 @@ function colorFor(name: string) {
 }
 
 export function Avatar({ username, avatarUrl, isOnline, size = 36 }: Props) {
-  const bg = colorFor(username);
-  const initials = username.slice(0, 2).toUpperCase();
+  const safeName = username || "user";
+  const bg = colorFor(safeName);
+  const initials = safeName.slice(0, 2).toUpperCase();
   const dotSize = Math.max(8, size * 0.25);
 
   return (

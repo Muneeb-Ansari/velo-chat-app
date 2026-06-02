@@ -9,16 +9,16 @@ export function MembersPanel() {
 
   if (!room) return null;
 
-  const online = room.members.filter((m) => m.isOnline);
-  const offline = room.members.filter((m) => !m.isOnline);
+  const online = room.members?.filter((m) => m.isOnline);
+  const offline = room.members?.filter((m) => !m.isOnline);
 
   return (
     <aside className="members-panel">
-      <h3 className="panel-title">Members · {room.members.length}</h3>
-      {online.length > 0 && (
+      <h3 className="panel-title">Members · {room?.members?.length}</h3>
+      {online?.length > 0 && (
         <div className="section">
-          <div className="section-label">Online — {online.length}</div>
-          {online.map((m) => (
+          <div className="section-label">Online — {online?.length}</div>
+          {online?.map((m) => (
             <div key={m.id} className="member-row">
               <Avatar username={m.username} avatarUrl={m.avatarUrl} isOnline size={30} />
               <span className="member-name">{m.username}</span>
@@ -26,10 +26,10 @@ export function MembersPanel() {
           ))}
         </div>
       )}
-      {offline.length > 0 && (
+      {offline?.length > 0 && (
         <div className="section">
-          <div className="section-label">Offline — {offline.length}</div>
-          {offline.map((m) => (
+          <div className="section-label">Offline — {offline?.length}</div>
+          {offline?.map((m) => (
             <div key={m.id} className="member-row offline">
               <Avatar username={m.username} avatarUrl={m.avatarUrl} isOnline={false} size={30} />
               <span className="member-name">{m.username}</span>
