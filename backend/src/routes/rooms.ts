@@ -123,9 +123,12 @@ router.get("/:roomId/messages", async (req: AuthRequest, res: Response) => {
     const msgs = await db
       .select({
         id: messages.id,
+        roomId: messages.roomId,
+        senderId: messages.senderId,
         content: messages.content,
+        type: messages.type,
         createdAt: messages.createdAt,
-        senderId: users.id,
+        userId: users.id,
         username: users.username,
         avatarUrl: users.avatarUrl,
       })
@@ -146,10 +149,13 @@ router.get("/:roomId/messages", async (req: AuthRequest, res: Response) => {
     res.json({
       messages: msgs.reverse().map((m) => ({
         id: m.id,
+        roomId: m.roomId,
+        senderId: m.senderId,
         content: m.content,
+        type: m.type,
         createdAt: m.createdAt,
         sender: {
-          id: m.senderId,
+          id: m.userId,
           username: m.username,
           avatarUrl: m.avatarUrl,
         },

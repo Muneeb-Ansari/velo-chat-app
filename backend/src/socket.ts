@@ -62,11 +62,21 @@ export function initSocket(server: any) {
         socket.on("send_message", async (data: { roomId: string; content: string }) => {
             try {
                 const saved = await saveMessage(data.roomId, userId, data.content);
+                
+                // Get sender avatar URL
+                const sender = await db.select({ avatarUrl: users.avatarUrl }).from(users).where(eq(users.id, userId)).then(res => res[0]);
+                
                 io.to(data.roomId).emit("receive_message", {
-                    ...saved,
+                    id: saved.id,
+                    roomId: saved.roomId,
+                    senderId: saved.senderId,
+                    content: saved.content,
+                    type: saved.type,
+                    createdAt: saved.createdAt,
                     sender: {
                         id: userId,
                         username: username,
+                        avatarUrl: sender?.avatarUrl,
                     },
                 });
             } catch (err: any) {
