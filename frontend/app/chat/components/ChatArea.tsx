@@ -49,6 +49,7 @@ export function ChatArea() {
     socket.emit('join_room', activeRoomId);
 
     const onMsg = (msg: Message) => {
+      console.log("Received message:", msg);
       if (msg.roomId === activeRoomId) addMessage(activeRoomId, msg);
     };
     const onTyping = (data: { username: string; typing: boolean }) => {

@@ -1,15 +1,23 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useChatStore } from '@/store/chat';
 import { useAuthStore } from '@/store/auth';
 import { Avatar } from './Avatar';
 import { Room } from '@/lib/types';
 import { disconnectSocket } from '@/lib/socket';
 import { useRouter } from 'next/navigation';
+import { roomsApi, usersApi } from '@/lib/api';
+import { ProfileModal } from './ProfileModal';
 
 interface Props {
   onNewRoom: () => void;
 }
+type User = {
+  id: string;
+  username: string;
+  avatarUrl?: string;
+  isOnline?: boolean;
+};
 
 export function Sidebar({ onNewRoom }: Props) {
   const router = useRouter();
@@ -20,6 +28,8 @@ export function Sidebar({ onNewRoom }: Props) {
   const user = useAuthStore((s) => s.user);
   const clearAuth = useAuthStore((s) => s.clearAuth);
   const [search, setSearch] = useState('');
+  const [users, setUsers] = useState<User[]>([]);
+  const [profile, setProfile] = useState<User | null>(null);
 
   const filtered = rooms.filter((r) =>
     r.name.toLowerCase().includes(search.toLowerCase())
@@ -31,6 +41,35 @@ export function Sidebar({ onNewRoom }: Props) {
     clearAuth();
     router.push('/login');
   };
+  useEffect(() => {
+    const fetchUsers = async () => {
+      const { data } = await usersApi.list();
+      setUsers(data.users);
+    };
+
+    fetchUsers();
+  }, []);
+
+  const startChat = async (selectedUser: any) => {
+    const existingRoom = rooms.find((r) =>
+      r.type === "direct" &&
+      r.members?.some((m) => m.id === selectedUser.id)
+    );
+
+    if (existingRoom) {
+      setActiveRoom(existingRoom.id);
+      return;
+    }
+
+    const { data } = await roomsApi.create({
+      name: selectedUser.username,
+      type: "direct",
+      memberIds: [selectedUser.id],
+    });
+
+    useChatStore.getState().addRoom(data.room);
+    setActiveRoom(data.room.id);
+  };
 
   return (
     <aside className="sidebar">
@@ -41,14 +80,14 @@ export function Sidebar({ onNewRoom }: Props) {
         </div>
         <button className="new-room-btn" onClick={onNewRoom} title="New room">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
           </svg>
         </button>
       </div>
 
       <div className="search-wrap">
         <svg className="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
         </svg>
         <input className="search-input" placeholder="Search rooms…"
           value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -71,23 +110,51 @@ export function Sidebar({ onNewRoom }: Props) {
         ))}
       </nav>
 
+      <div className="users-label">Users</div>
+
+      <div className="users-list">
+        {users.length === 0 && (
+          <div className="empty-users">No users found</div>
+        )}
+
+        {users.map((u: any) => (
+          <div key={u.id} className="user-item" onClick={() => startChat(u)}>
+            <Avatar username={u.username}
+              avatarUrl={u.avatarUrl}
+              isOnline
+              size={28}
+              onClick={() => setProfile(u)}
+            />
+            <span className="user-name">{u.username}</span>
+          </div>
+        ))}
+      </div>
+
       <div className="sidebar-footer">
         {user && (
           <>
-            <Avatar username={user.username} avatarUrl={user.avatarUrl} isOnline size={32} />
+            <Avatar username={user.username} avatarUrl={user.avatarUrl} isOnline size={32} onClick={() => setProfile(user)} />
             <div className="footer-info">
               <span className="footer-name">{user.username}</span>
               <span className="footer-status">Online</span>
             </div>
             <button className="logout-btn" onClick={logout} title="Sign out">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
               </svg>
             </button>
           </>
         )}
       </div>
+
+      {profile && (
+        <ProfileModal
+          user={profile}
+          avatarUrl={profile.avatarUrl}
+          onClose={() => setProfile(null)}
+        />
+      )}
 
       <style jsx>{`
         .sidebar {
@@ -156,6 +223,49 @@ export function Sidebar({ onNewRoom }: Props) {
           display: flex; align-items: center; justify-content: center;
           transition: all 0.15s; flex-shrink: 0;
         }
+          .users-label {
+  padding: 10px 16px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text3);
+}
+
+.users-list {
+  padding: 4px 8px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.user-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.user-item:hover {
+  background: var(--bg3);
+}
+
+.user-name {
+  font-size: 13px;
+  color: var(--text2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.empty-users {
+  padding: 12px;
+  font-size: 12px;
+  color: var(--text3);
+  text-align: center;
+}
         .logout-btn:hover { background: rgba(248,113,113,0.1); color: var(--red); border-color: var(--red); }
       `}</style>
     </aside>
@@ -167,6 +277,11 @@ function RoomItem({ room, active, onClick, index }: {
 }) {
   const online = (room.members ?? []).filter((m) => m.isOnline).length;
 
+  const handleDelete = async (roomId: string) => {
+    await roomsApi.delete(roomId);
+    useChatStore.getState().removeRoom(roomId);
+  };
+
   return (
     <button className={`room-item ${active ? 'active' : ''}`} onClick={onClick}
       style={{ animationDelay: `${index * 30}ms` }}>
@@ -176,6 +291,12 @@ function RoomItem({ room, active, onClick, index }: {
       <div className="room-info">
         <span className="room-name">{room.name}</span>
         {online > 0 && <span className="room-online">{online} online</span>}
+      </div>
+      <div className="delete-btn" onClick={(e) => {
+        e.stopPropagation();
+        handleDelete(room.id);
+      }}>
+        🗑️
       </div>
       <style jsx>{`
         .room-item {
@@ -198,6 +319,7 @@ function RoomItem({ room, active, onClick, index }: {
         .room-info { flex: 1; min-width: 0; }
         .room-name { display: block; font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .room-online { display: block; font-size: 11px; color: var(--green); }
+        .room-item:hover .delete-btn {background: rgba(248,113,113,0.1); color: var(--red); border-radius: 6px; padding: 4px; display: flex; align-items: center; justify-content: center; }
       `}</style>
     </button>
   );

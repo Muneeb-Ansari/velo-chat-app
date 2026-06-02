@@ -38,10 +38,14 @@ export const roomsApi = {
   messages: (roomId: string, params?: { limit?: number; before?: string }) =>
     api.get(`/api/rooms/${roomId}/messages`, { params }),
   join: (roomId: string) => api.post(`/api/rooms/${roomId}/join`),
+  delete: (roomId: string) => api.delete(`/api/rooms/${roomId}`),
 };
 
 // Users
 export const usersApi = {
   search: (q: string) => api.get('/api/users/search', { params: { q } }),
   list: () => api.get('/api/users'),
+  update: (userId: string, data: FormData) =>
+    api.put(`/api/users/${userId}`, data),
 };
+  

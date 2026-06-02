@@ -199,4 +199,17 @@ router.post("/:roomId/join", async (req: AuthRequest, res: Response) => {
   }
 });
 
+router.delete("/:roomId", async (req: AuthRequest, res: Response) => {
+  try {
+    const { roomId } = req.params;
+
+    await db.delete(rooms).where(eq(rooms.id, roomId));
+
+    return res.json({ message: "Room deleted successfully" });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 export default router;

@@ -7,6 +7,7 @@ import internalRoutes from "./routes/messages.js";
 import usersRoutes from "./routes/users.js";
 import http from "http";
 import { initSocket } from "./socket";
+import path from "path";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -26,6 +27,7 @@ app.use((req, _res, next) => {
   next();
 });
 
+app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 // ─── Routes ───────────────────────────────────────────────────────────────────
 app.use("/api/auth", authRoutes);
 app.use("/api/rooms", roomsRoutes);

@@ -2,9 +2,11 @@
 
 interface Props {
   username: string;
+  // email?: string;
   avatarUrl?: string;
   isOnline?: boolean;
   size?: number;
+  onClick?: () => void;
 }
 
 const colors = [
@@ -18,14 +20,14 @@ function colorFor(name: string) {
   return colors[Math.abs(h) % colors.length];
 }
 
-export function Avatar({ username, avatarUrl, isOnline, size = 36 }: Props) {
+export function Avatar({ username, avatarUrl, isOnline, size = 36, onClick }: Props) {
   const safeName = username || "user";
   const bg = colorFor(safeName);
   const initials = safeName.slice(0, 2).toUpperCase();
   const dotSize = Math.max(8, size * 0.25);
 
   return (
-    <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
+    <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }} onClick={onClick}>
       {avatarUrl ? (
         <img src={avatarUrl} alt={username}
           style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover' }} />
