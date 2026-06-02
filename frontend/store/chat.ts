@@ -11,6 +11,7 @@ interface ChatState {
   setMessages: (roomId: string, msgs: Message[]) => void;
   addMessage: (roomId: string, msg: Message) => void;
   prependMessages: (roomId: string, msgs: Message[]) => void;
+  clearChat: () => void;
 }
 
 export const useChatStore = create<ChatState>((set) => ({
@@ -36,4 +37,5 @@ export const useChatStore = create<ChatState>((set) => ({
         [roomId]: [...msgs, ...(s.messages[roomId] || [])],
       },
     })),
+  clearChat: () => set({ rooms: [], activeRoomId: null, messages: {} }),
 }));

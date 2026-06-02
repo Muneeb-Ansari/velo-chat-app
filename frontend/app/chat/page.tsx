@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { authApi, roomsApi } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
 import { useChatStore } from '@/store/chat';
-import { getSocket } from '@/lib/socket';
+import { getSocket, reconnectSocket, disconnectSocket } from '@/lib/socket';
 import { Sidebar } from './components/Sidebar';
 import { ChatArea } from './components/ChatArea';
 import { MembersPanel } from './components/MembersPanel';
@@ -16,9 +16,11 @@ export default function ChatPage() {
   const setAuth = useAuthStore((s) => s.setAuth);
   const user = useAuthStore((s) => s.user);
   const setRooms = useChatStore((s) => s.setRooms);
+  const clearChat = useChatStore((s) => s.clearChat);
   const activeRoomId = useChatStore((s) => s.activeRoomId);
   const [showModal, setShowModal] = useState(false);
   const [ready, setReady] = useState(false);
+  const [lastUserId, setLastUserId] = useState<string | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -27,6 +29,15 @@ export default function ChatPage() {
     (async () => {
       try {
         const { data: me } = await authApi.me();
+        const currentUserId = me.user.id;
+        
+        // If user changed, clear previous user's data and reconnect socket
+        if (lastUserId && lastUserId !== currentUserId) {
+          clearChat();
+          reconnectSocket();
+        }
+        
+        setLastUserId(currentUserId);
         setAuth(me.user, token);
 
         const { data: room } = await roomsApi.list();
@@ -42,7 +53,7 @@ export default function ChatPage() {
         router.replace('/login');
       }
     })();
-  }, [router, setAuth, setRooms]);
+  }, [router, setAuth, setRooms, clearChat, lastUserId]);
 
   if (!ready) return <Splash />;
 

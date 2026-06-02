@@ -16,6 +16,7 @@ export function Sidebar({ onNewRoom }: Props) {
   const rooms = useChatStore((s) => s.rooms);
   const activeRoomId = useChatStore((s) => s.activeRoomId);
   const setActiveRoom = useChatStore((s) => s.setActiveRoom);
+  const clearChat = useChatStore((s) => s.clearChat);
   const user = useAuthStore((s) => s.user);
   const clearAuth = useAuthStore((s) => s.clearAuth);
   const [search, setSearch] = useState('');
@@ -26,6 +27,7 @@ export function Sidebar({ onNewRoom }: Props) {
 
   const logout = () => {
     disconnectSocket();
+    clearChat();
     clearAuth();
     router.push('/login');
   };
