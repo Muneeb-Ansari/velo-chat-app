@@ -23,6 +23,7 @@ export function ChatArea() {
 ) || [];
   const setMessages = useChatStore((s) => s.setMessages);
   const addMessage = useChatStore((s) => s.addMessage);
+  const replaceTempMessage = useChatStore((s) => s.replaceTempMessage);
   const user = useAuthStore((s) => s.user);
 
   const [input, setInput] = useState('');
@@ -46,11 +47,32 @@ export function ChatArea() {
   useEffect(() => {
     if (!activeRoomId) return;
     const socket = getSocket();
-    socket.emit('join_room', activeRoomId);
+    
+    // Ensure we're in the room
+    socket.emit('join_room', activeRoomId, (err?: any) => {
+      if (err) console.error('Failed to join room:', err);
+      else console.log('Joined room:', activeRoomId);
+    });
 
     const onMsg = (msg: Message) => {
       console.log("Received message:", msg);
-      if (msg.roomId === activeRoomId) addMessage(activeRoomId, msg);
+      if (msg.roomId === activeRoomId) {
+        // Check if this is a confirmation of an optimistic message we sent
+        const messages = useChatStore.getState().messages[activeRoomId] || [];
+        const tempMsgIndex = messages.findIndex(m => 
+          m.id.startsWith('temp-') && 
+          m.content === msg.content && 
+          m.senderId === msg.senderId
+        );
+        
+        if (tempMsgIndex >= 0) {
+          // Replace temp message with confirmed message
+          replaceTempMessage(activeRoomId, messages[tempMsgIndex].id, msg);
+        } else {
+          // Add new message (from other users or if no temp message exists)
+          addMessage(activeRoomId, msg);
+        }
+      }
     };
     const onTyping = (data: { username: string; typing: boolean }) => {
       setTyping((prev) =>
@@ -64,7 +86,7 @@ export function ChatArea() {
       socket.off('receive_message', onMsg);
       socket.off('user_typing', onTyping);
     };
-  }, [activeRoomId, addMessage]);
+  }, [activeRoomId, addMessage, replaceTempMessage]);
 
   // Scroll to bottom on new message
   useEffect(() => {
@@ -80,14 +102,38 @@ export function ChatArea() {
   }, [input]);
 
   const send = useCallback(() => {
-    if (!input.trim() || !activeRoomId || sending) return;
+    if (!input.trim() || !activeRoomId || sending || !user) return;
     const content = input.trim();
     setInput('');
     setSending(true);
+    
+    // Optimistic update: show message immediately
+    const tempId = `temp-${Date.now()}-${Math.random()}`;
+    const optimisticMessage: Message = {
+      id: tempId,
+      roomId: activeRoomId,
+      senderId: user.id,
+      content,
+      type: 'text',
+      createdAt: new Date().toISOString(),
+      sender: {
+        id: user.id,
+        username: user.username,
+        avatarUrl: user.avatarUrl,
+      },
+    };
+    
+    addMessage(activeRoomId, optimisticMessage);
+    
     const socket = getSocket();
-    socket.emit('send_message', { roomId: activeRoomId, content });
-    setSending(false);
-  }, [input, activeRoomId, sending]);
+    socket.emit('send_message', { roomId: activeRoomId, content }, (ack?: any) => {
+      setSending(false);
+      // If server sends back the confirmed message, replace the temp one
+      if (ack?.id) {
+        // Messages will be updated via the broadcast event
+      }
+    });
+  }, [input, activeRoomId, sending, user, addMessage]);
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }

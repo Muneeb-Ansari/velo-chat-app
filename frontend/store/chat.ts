@@ -12,6 +12,7 @@ interface ChatState {
   setMessages: (roomId: string, msgs: Message[]) => void;
   addMessage: (roomId: string, msg: Message) => void;
   prependMessages: (roomId: string, msgs: Message[]) => void;
+  replaceTempMessage: (roomId: string, tempId: string, realMsg: Message) => void;
   clearChat: () => void;
 }
 
@@ -39,5 +40,18 @@ export const useChatStore = create<ChatState>((set) => ({
         [roomId]: [...msgs, ...(s.messages[roomId] || [])],
       },
     })),
+  replaceTempMessage: (roomId, tempId, realMsg) =>
+    set((s) => ({
+      messages: {
+        ...s.messages,
+        [roomId]: (s.messages[roomId] || [])
+          .map((m) => (m.id === tempId ? realMsg : m))
+          .filter((m, i, arr) => 
+            // Remove duplicates by ID (keep the first occurrence)
+            i === 0 || arr.findIndex(x => x.id === m.id) === i
+          ),
+      },
+    })),
   clearChat: () => set({ rooms: [], activeRoomId: null, messages: {} }),
 }));
+

@@ -59,14 +59,17 @@ export function initSocket(server: any) {
         });
 
         // Send message
-        socket.on("send_message", async (data: { roomId: string; content: string }) => {
+        socket.on("send_message", async (data: { roomId: string; content: string }, callback?: Function) => {
             try {
+                console.log(`[send_message] User ${userId} sending to room ${data.roomId}: "${data.content}"`);
+                
                 const saved = await saveMessage(data.roomId, userId, data.content);
+                console.log(`[send_message] Message saved with ID: ${saved.id}`);
                 
                 // Get sender avatar URL
                 const sender = await db.select({ avatarUrl: users.avatarUrl }).from(users).where(eq(users.id, userId)).then(res => res[0]);
                 
-                io.to(data.roomId).emit("receive_message", {
+                const messagePayload = {
                     id: saved.id,
                     roomId: saved.roomId,
                     senderId: saved.senderId,
@@ -78,8 +81,17 @@ export function initSocket(server: any) {
                         username: username,
                         avatarUrl: sender?.avatarUrl,
                     },
-                });
+                };
+                
+                // Broadcast to all clients in the room (including sender)
+                io.to(data.roomId).emit("receive_message", messagePayload);
+                console.log(`[send_message] Message broadcasted to room ${data.roomId}`);
+                
+                // Acknowledge to sender
+                if (callback) callback({ id: saved.id, success: true });
             } catch (err: any) {
+                console.error(`[send_message] Error for user ${userId}:`, err);
+                if (callback) callback({ success: false, error: err.message });
                 socket.emit("error", { message: err.message || "Failed to send message" });
             }
         });
