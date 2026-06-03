@@ -51,9 +51,11 @@ export function Sidebar({ onNewRoom }: Props) {
   }, []);
 
   const startChat = async (selectedUser: any) => {
-    const existingRoom = rooms.find((r) =>
-      r.type === "direct" &&
-      r.members?.some((m) => m.id === selectedUser.id)
+    
+    const existingRoom = rooms.find(
+      (r) =>
+        r.type === "direct" &&
+        r.name === selectedUser.username
     );
 
     if (existingRoom) {
